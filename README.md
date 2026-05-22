@@ -2,24 +2,27 @@
 
 # Indonesian Stock Exchange API Wrapper
 
-A data pipeline for the Indonesian Stock Exchange (IDX). Built with Deno and Drizzle ORM to sync official market data into a structured SQLite database. It includes automated retries for network stability and provides modules for company info, indices, and trading data.
+A modern data pipeline for the Indonesian Stock Exchange (IDX). Built with Next.js 15, NeonDB, and Drizzle ORM to sync official market data into a structured PostgreSQL database. It features molecular architecture design, automated retries for network stability, and provides RESTful API endpoints for company info, indices, and trading data.
 
-[![Deno](https://img.shields.io/badge/deno-compatible-ffcb00?logo=deno&logoColor=000000)](https://deno.com) [![SQLite](https://img.shields.io/badge/sqlite-compatible-0740ae?logo=sqlite&logoColor=ffffff)](https://www.sqlite.org/) [![Drizzle](https://img.shields.io/badge/drizzle-orm-blue.svg)](https://orm.drizzle.team/)
+[![Next.js](https://img.shields.io/badge/next.js-15-black?logo=next.js&logoColor=white)](https://nextjs.org) [![NeonDB](https://img.shields.io/badge/neondb-serverless-4ade80?logo=postgresql&logoColor=ffffff)](https://neon.tech) [![Drizzle](https://img.shields.io/badge/drizzle-orm-blue.svg)](https://orm.drizzle.team/)
 
-[![Module type: Deno/ESM](https://img.shields.io/badge/module%20type-deno%2Fesm-brightgreen)](https://github.com/NeaByteLab/IDX-API) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Module type: ESM](https://img.shields.io/badge/module%20type-esm-brightgreen)](https://github.com/NeaByteLab/IDX-API) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
 
 ## Features
 
+- **RESTful API** - Next.js App Router API endpoints for all IDX data
 - **Automated Sync** - Scheduled data synchronization with retry logic
 - **Official IDX Data** - Direct integration with Indonesian Stock Exchange APIs
-- **Structured Storage** - SQLite database with Drizzle ORM for type-safe queries
+- **Structured Storage** - PostgreSQL database with Drizzle ORM for type-safe queries
+- **Serverless Ready** - Optimized for deployment on Vercel, Neon, and edge platforms
+- **Molecular Architecture** - Modular design with separated concerns (Company, Market, Participants, Trading)
 
 ## Installation
 
 > [!NOTE]
-> **Prerequisites:** For **Deno** (install from [deno.com](https://deno.com/)).
+> **Prerequisites:** Node.js 18+ and npm/pnpm/yarn. You'll also need a [NeonDB](https://neon.tech) account for the PostgreSQL database.
 
 > [!TIP]
 > **Want to see the data in action?** Check out [IDX-UI](https://github.com/NeaByteLab/IDX-UI) - the interactive dashboard for your market data!
@@ -33,34 +36,45 @@ git clone https://github.com/NeaByteLab/IDX-API.git
 # Enter the project directory
 cd IDX-API/
 
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env
+
+# Edit .env and add your DATABASE_URL from NeonDB
+
 # Initialize the database (Drizzle generate & push)
-deno task db:sync
+npm run db:generate
+npm run db:push
 ```
 
 **Requirements:**
 
-- **[Deno](https://deno.com/)** (v2.5.0 or higher recommended)
+- **[Node.js](https://nodejs.org/)** (v18.0.0 or higher recommended)
+- **[NeonDB](https://neon.tech/)** Account (Free tier available)
 - **Git** (for cloning the repository)
 
 ## Technology Stack
 
-- **Runtime**: [Deno](https://deno.com/) (Modern, Secure, High-Performance)
-- **Database**: [SQLite](https://www.sqlite.org/) via [LibSQL Client](https://github.com/tursodatabase/libsql-client-ts)
+- **Framework**: [Next.js 15](https://nextjs.org/) (React Server Components, App Router)
+- **Database**: [NeonDB](https://neon.tech/) (Serverless PostgreSQL)
 - **ORM**: [Drizzle ORM](https://orm.drizzle.team/) (Type-Safe SQL ORM)
+- **Runtime**: [Node.js](https://nodejs.org/) / Edge Runtime compatible
 
 ## Architecture Overview
 
 ```mermaid
 flowchart TD
     %% Define Nodes
-    A[(Local SQLite DB)]:::db
+    A[(NeonDB PostgreSQL)]:::db
     B(Drizzle Schema Sync):::process
     C[IDX API Endpoints]:::api
-    D(BaseClient Fetcher):::process
+    D[Next.js API Routes]:::process
     E{Data Valid?}:::decision
     F(Data Processing):::process
     G(Drizzle Upsert):::process
-    H[Your Application / CLI]:::app
+    H[Your Application / Frontend]:::app
 
     %% Define Flow
     B -->|Setup Tables| A
@@ -70,7 +84,8 @@ flowchart TD
     E -->|Yes: Parse| F
     F -->|Clean Data| G
     G -->|Store| A
-    A -->|Query| H
+    A -->|Query via ORM| H
+    D -->|REST API| H
 
     %% Styling
     classDef db fill:#e0f7fa,stroke:#006064,stroke-width:2px,color:#000000;
@@ -82,80 +97,121 @@ flowchart TD
 
 ## Quick Start
 
+### Using the API Endpoints
+
+```bash
+# Start the development server
+npm run dev
+
+# Access the API endpoints
+curl http://localhost:3000/api/company/profile
+curl http://localhost:3000/api/market/indices
+curl http://localhost:3000/api/trading/summary?date=20240220
+```
+
+### Programmatic Usage (Server Components)
+
 ```typescript
-import * as sync from '@app/Backend/Sync/index.ts'
-import IDXClient from '@app/index.ts'
+import { db } from '@/lib/db'
+import { companyProfile, stockSummary } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 
-// Initialize database (run once)
-await sync.dbInitialize()
+// Query company profiles
+const companies = await db.select().from(companyProfile)
 
-// Sync company profiles
-await sync.syncCompanyProfile()
+// Get stock summary for a specific date
+const dailyData = await db
+  .select()
+  .from(stockSummary)
+  .where(eq(stockSummary.date, '20240220'))
 
-// Get current market data
-const client = new IDXClient()
-const indices = await client.market.getIndexList()
-const stockSummary = await client.trading.getStockSummary('20240220')
+// Access via molecular modules
+import { CompanyModule } from '@/src/Company/module'
+import { MarketModule } from '@/src/Market/module'
+import { TradingModule } from '@/src/Trading/module'
+
+const company = new CompanyModule()
+const profile = await company.getProfile('BBCA')
+
+const market = new MarketModule()
+const indices = await market.getIndexList()
+
+const trading = new TradingModule()
+const summary = await trading.getStockSummary('20240220')
 ```
 
 For detailed usage examples, see [USAGE.md](USAGE.md).
 
 ## Module Overview
 
-**Corporate Modules:**
+The project maintains a **molecular architecture** with separated modules that can be accessed programmatically or via REST API endpoints.
 
-- `syncCompanyProfile()` - Company metadata and profiles
-- `syncCompanyAnnouncement()` - Corporate news and announcements
-- `syncFinancialRatio()` - Financial indicators (PER, PBV, ROE, DER)
-- `syncFinancialReport()` - Detailed financial reports
-- `syncCompanyDividend()` - Dividend payment data
-- `syncStockSplit()` - Stock split events
-- `syncNewListing()` - IPO and new listings
-- `syncCompanyDelisting()` - Delisted companies
+### Corporate Module (`/api/company/*`)
 
-**Market Modules:**
+- `GET /company/profile` - Company metadata and profiles
+- `GET /company/announcement` - Corporate news and announcements
+- `GET /company/financial-ratio` - Financial indicators (PER, PBV, ROE, DER)
+- `GET /company/financial-report` - Detailed financial reports
+- `GET /company/dividend` - Dividend payment data
+- `GET /company/stock-split` - Stock split events
+- `GET /company/new-listing` - IPO and new listings
+- `GET /company/delisting` - Delisted companies
 
-- `syncDailyIndex()` - Daily index performance
-- `syncIndexList()` - Current index prices
-- `syncIndexSummary()` - Daily index snapshots
-- `syncForeignTrading()` - Foreign investor flows
-- `syncTopGainer()` - Top gaining stocks
-- `syncTopLoser()` - Top losing stocks
+### Market Module (`/api/market/*`)
 
-**Trading Modules:**
+- `GET /market/daily-index` - Daily index performance
+- `GET /market/index-list` - Current index prices
+- `GET /market/index-summary` - Daily index snapshots
+- `GET /market/foreign-trading` - Foreign investor flows
+- `GET /market/top-gainer` - Top gaining stocks
+- `GET /market/top-loser` - Top losing stocks
 
-- `syncStockSummary()` - Daily OHLC and volume data
-- `syncTradeSummary()` - Market aggregate data
-- `syncBrokerSummary()` - Broker trading activity
-- `syncTradingDaily()` - Real-time price snapshots
-- `syncTradingSS()` - Historical trading data
+### Trading Module (`/api/trading/*`)
 
-**Participants Modules:**
+- `GET /trading/stock-summary` - Daily OHLC and volume data
+- `GET /trading/trade-summary` - Market aggregate data
+- `GET /trading/broker-summary` - Broker trading activity
+- `GET /trading/daily` - Real-time price snapshots
+- `GET /trading/historical` - Historical trading data
 
-- `syncBrokerParticipant()` - Exchange member brokers
-- `syncDealerParticipant()` - Primary dealers
-- `syncProfileParticipant()` - Participant profiles
+### Participants Module (`/api/participants/*`)
 
-**General Modules:**
+- `GET /participants/broker` - Exchange member brokers
+- `GET /participants/dealer` - Primary dealers
+- `GET /participants/profile` - Participant profiles
 
-- `syncMarketCalendar()` - Trading holidays and events
-- `syncSecurityStock()` - Master security list
+### General Endpoints (`/api/general/*`)
+
+- `GET /general/market-calendar` - Trading holidays and events
+- `GET /general/security-stock` - Master security list
 
 ## Project Structure
 
 ```text
 .
-├── src/                  # Core modules and backend implementation
-│   ├── Backend/          # Task automation, schemas, and sync logic
-│   ├── Company/          # Corporate information endpoints
-│   ├── Market/           # Market and index endpoints
-│   ├── Participants/     # Broker and dealer endpoints
-│   ├── Statistics/       # Stock activity endpoints
-│   ├── Trading/          # Trading summary endpoints
-│   └── Client.ts         # Main API client wrapper
-├── tests/                # Deno unit test suites
-├── sample/               # Generator for sample documentation
-└── data/                 # SQLite database storage
+├── src/                  # Core modules (Molecular Architecture)
+│   ├── Backend/          # Database schema, sync logic, and utilities
+│   ├── Company/          # Corporate information module
+│   ├── Market/           # Market and index module
+│   ├── Participants/     # Broker and dealer module
+│   ├── Statistics/       # Stock activity module
+│   └── Trading/          # Trading summary module
+├── app/                  # Next.js App Router
+│   ├── api/              # REST API endpoints
+│   │   ├── company/      # Corporate data endpoints
+│   │   ├── market/       # Market data endpoints
+│   │   ├── trading/      # Trading data endpoints
+│   │   └── participants/ # Participant data endpoints
+│   ├── layout.tsx        # Root layout
+│   └── page.tsx          # Home page
+├── lib/                  # Shared utilities
+│   └── db.ts             # Database connection (NeonDB + Drizzle)
+├── db/                   # Database layer
+│   └── schema/           # Drizzle ORM schemas (PostgreSQL)
+├── public/               # Static assets
+├── tests/                # Unit test suites
+├── sample/               # Documentation generator
+└── .env.example          # Environment variables template
 ```
 
 ## License
